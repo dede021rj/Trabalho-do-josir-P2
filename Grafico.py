@@ -3,83 +3,57 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # ==============================
-# 1️⃣ Configurações iniciais
+# 1️⃣ Leitura dos dados
 # ==============================
-st.set_page_config(page_title="Comparativo Despesa Total / PIB", page_icon="📊", layout="centered")
+caminho_csv = "bq-results-20251105-191211-1762369940755 (1).csv"
+df = pd.read_csv(caminho_csv)
+
+# ==============================
+# 2️⃣ Título do app
+# ==============================
 st.title("📊 Comparativo de Despesa Total / PIB por Estado")
 
 # ==============================
-# 2️⃣ Upload do arquivo
+# 3️⃣ Seleção dos filtros
 # ==============================
-st.sidebar.header("📂 Importar dados")
-uploaded_file = st.sidebar.file_uploader("Envie seu arquivo CSV", type=["csv"])
+# Garante que as colunas existem
+if not {"sigla_uf", "ano", "despesa_total_pib"}.issubset(df.columns):
+    st.error("⚠️ O arquivo CSV não contém as colunas necessárias: 'sigla_uf', 'ano' e 'despesa_total_pib'.")
+else:
+    estados = sorted(df["sigla_uf"].dropna().unique())
+    anos = sorted(df["ano"].dropna().unique())
 
-# ==============================
-# 3️⃣ Verificação do upload
-# ==============================
-if uploaded_file is not None:
-    # Leitura do CSV
-    df = pd.read_csv(uploaded_file)
+    estado1 = st.selectbox("Selecione o primeiro estado:", estados, index=0)
+    estado2 = st.selectbox("Selecione o segundo estado:", estados, index=1)
+    ano = st.selectbox("Selecione o ano:", anos, index=len(anos) - 1)
 
-    # Verifica se as colunas necessárias existem
-    colunas_necessarias = {"sigla_uf", "ano", "despesa_total_pib"}
-    if not colunas_necessarias.issubset(df.columns):
-        st.error(f"❌ O arquivo CSV precisa conter as colunas: {', '.join(colunas_necessarias)}")
+    # ==============================
+    # 4️⃣ Filtra os dados
+    # ==============================
+    df_filtrado = df[(df["sigla_uf"].isin([estado1, estado2])) & (df["ano"] == ano)]
+
+    if df_filtrado.empty:
+        st.warning("⚠️ Não há dados disponíveis para essa combinação de estados e ano.")
     else:
         # ==============================
-        # 4️⃣ Filtros
+        # 5️⃣ Criação do gráfico
         # ==============================
-        estados = sorted(df["sigla_uf"].unique())
-        anos = sorted(df["ano"].unique())
+        fig, ax = plt.subplots(figsize=(8, 4))
+        cores = ["#1f77b4", "#ff7f0e"]
 
-        st.sidebar.header("⚙️ Filtros")
-        estado1 = st.sidebar.selectbox("Selecione o primeiro estado:", estados, index=0)
-        estado2 = st.sidebar.selectbox("Selecione o segundo estado:", estados, index=1)
-        ano = st.sidebar.selectbox("Selecione o ano:", anos, index=len(anos) - 1)
+        barras = ax.bar(df_filtrado["sigla_uf"], df_filtrado["despesa_total_pib"] * 100, color=cores)
+
+        for i, v in enumerate(df_filtrado["despesa_total_pib"]):
+            ax.text(i, v * 100 + 0.02, f"{v * 100:.2f}%", ha="center", fontweight="bold")
+
+        ax.set_title(f"Percentual da Despesa Total em relação ao PIB ({ano})", fontsize=14, pad=15)
+        ax.set_xlabel("Estado")
+        ax.set_ylabel("Despesa Total / PIB (%)")
+
+        st.pyplot(fig)
 
         # ==============================
-        # 5️⃣ Filtragem dos dados
+        # 6️⃣ Mostra a tabela
         # ==============================
-        df_filtrado = df[(df["sigla_uf"].isin([estado1, estado2])) & (df["ano"] == ano)]
-
-        if df_filtrado.empty:
-            st.warning("⚠️ Não há dados disponíveis para essa combinação de estados e ano.")
-        else:
-            # ==============================
-            # 6️⃣ Gráfico comparativo
-            # ==============================
-            fig, ax = plt.subplots(figsize=(8, 4))
-            cores = ["#1f77b4", "#ff7f0e"]
-
-            barras = ax.bar(df_filtrado["sigla_uf"], df_filtrado["despesa_total_pib"] * 100, color=cores)
-
-            for i, v in enumerate(df_filtrado["despesa_total_pib"]):
-                ax.text(i, v * 100 + 0.02, f"{v * 100:.2f}%", ha="center", fontweight="bold")
-
-            ax.set_title(f"Percentual da Despesa Total em relação ao PIB ({ano})", fontsize=14, pad=15)
-            ax.set_xlabel("Estado")
-            ax.set_ylabel("Despesa Total / PIB (%)")
-
-            st.pyplot(fig)
-
-            # ==============================
-            # 7️⃣ Exibição dos dados
-            # ==============================
-            st.write("### 🔢 Dados utilizados")
-            st.dataframe(df_filtrado[["sigla_uf", "ano", "despesa_total_pib"]])
-
-            # ==============================
-            # 8️⃣ Interpretação automática
-            # ==============================
-            valores = dict(zip(df_filtrado["sigla_uf"], df_filtrado["despesa_total_pib"] * 100))
-            if len(valores) == 2:
-                uf1, uf2 = valores.keys()
-                v1, v2 = valores.values()
-                dif = abs(v1 - v2)
-                maior = uf1 if v1 > v2 else uf2
-                st.info(
-                    f"📈 Em {ano}, o estado **{maior}** apresentou o maior percentual de despesa em relação ao PIB "
-                    f"({max(v1, v2):.2f}%), superando o outro estado em aproximadamente **{dif:.2f} pontos percentuais**."
-                )
-else:
-    st.warning("👈 Envie um arquivo CSV para começar a análise.")
+        st.write("### 🔢 Dados utilizados")
+        st.dataframe(df_filtrado[["sigla_uf", "ano", "despesa_total_pib"]])
